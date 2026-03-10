@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bitcoin Price Prediction Dashboard</title>
+
+  <!-- ✅ Local Plotly (saved in static folder) -->
+  <script src="{{ url_for('static', filename='plotly-latest.min.js') }}"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #0f0f1a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      padding: 20px 40px;
+      border-bottom: 2px solid #f0a500;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .btc-logo { font-size: 48px; color: #f0a500; text-shadow: 0 0 20px rgba(240,165,0,0.5); }
+    h1 { font-size: 26px; color: #f0a500; font-weight: 700; }
+    .subtitle { font-size: 13px; color: #888; margin-top: 3px; }
+
+    .price-card {
+      display: flex; flex-direction: column; align-items: flex-end;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #f0a500;
+      border-radius: 12px; padding: 14px 22px;
+    }
+    .price-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    .price-value { font-size: 28px; font-weight: 700; color: #f0a500; }
+    .price-change { font-size: 14px; font-weight: 600; margin-top: 4px; }
+    .positive { color: #00e676; }
+    .negative { color: #ff5252; }
+
+    .metrics-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px; padding: 30px 40px;
+    }
+
+    .metric-card {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 1px solid #2a2a4a; border-radius: 16px;
+      padding: 24px; text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .metric-card:hover { transform: translateY(-4px); border-color: #f0a500; }
+    .metric-icon { font-size: 32px; margin-bottom: 10px; }
+    .metric-label { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .metric-value { font-size: 26px; font-weight: 700; color: #e0e0e0; }
+    .metric-value.green { color: #00e676; }
+
+    .chart-section {
+      margin: 10px 40px 30px;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px;
+    }
+    .chart-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .chart-header h2 { font-size: 18px; color: #e0e0e0; font-weight: 600; }
+    .badge {
+      background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+      color: white; padding: 4px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+    }
+    .chart-box { width: 100%; height: 400px; border-radius: 8px; overflow: hidden; }
+
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      height: 400px; color: #888; font-size: 16px;
+    }
+
+    footer {
+      text-align: center; padding: 24px; color: #555;
+      font-size: 13px; border-top: 1px solid #2a2a4a; margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+      header { padding: 16px 20px; }
+      .metrics-section { padding: 20px; }
+      .chart-section { margin: 10px 20px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <span class="btc-logo">₿</span>
+      <div>
+        <h1>Bitcoin Price Prediction</h1>
+        <p class="subtitle">LSTM Deep Learning Dashboard</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="price-card">
+        <span class="price-label">Current BTC Price</span>
+        <span class="price-value">${{ current_price }}</span>
+        <span class="price-change {{ 'positive' if '+' in change else 'negative' }}">
+          {{ change }} ({{ change_pct }}%)
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- METRICS -->
+  <section class="metrics-section">
+    <div class="metric-card">
+      <div class="metric-icon">🎯</div>
+      <div class="metric-label">Model Accuracy</div>
+      <div class="metric-value green">{{ accuracy }}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">📉</div>
+      <div class="metric-label">RMSE</div>
+      <div class="metric-value">${{ rmse }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">📊</div>
+      <div class="metric-label">MAE</div>
+      <div class="metric-value">${{ mae }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">📈</div>
+      <div class="metric-label">MAPE</div>
+      <div class="metric-value green">{{ mape }}%</div>
+    </div>
+  </section>
+
+  <!-- CHART 1: Historical -->
+  <section class="chart-section">
+    <div class="chart-header">
+      <h2>📈 Historical Bitcoin Price (730 Days)</h2>
+    </div>
+    <div id="historicalChart" class="chart-box">
+      <div class="loading">⏳ Loading chart...</div>
+    </div>
+  </section>
+
+  <!-- CHART 2: Actual vs Predicted -->
+  <section class="chart-section">
+    <div class="chart-header">
+      <h2>🤖 Actual vs Predicted Price</h2>
+    </div>
+    <div id="predictionChart" class="chart-box">
+      <div class="loading">⏳ Loading chart...</div>
+    </div>
+  </section>
+
+  <!-- CHART 3: Forecast -->
+  <section class="chart-section">
+    <div class="chart-header">
+      <h2>🔮 Next 30 Days Forecast</h2>
+      <span class="badge">AI Prediction</span>
+    </div>
+    <div id="forecastChart" class="chart-box">
+      <div class="loading">⏳ Loading chart...</div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built with ❤️ using LSTM Deep Learning + Flask + Plotly</p>
+  </footer>
+
+  <script>
+    // ── Wait for Plotly to be ready ──────────────────────────
+    window.onload = function () {
+
+      if (typeof Plotly === 'undefined') {
+        console.error('❌ Plotly not loaded!');
+        document.querySelectorAll('.loading').forEach(el => {
+          el.innerHTML = '❌ Plotly not loaded. Check static/plotly-latest.min.js';
+        });
+        return;
+      }
+
+      console.log('✅ Plotly loaded:', Plotly.version);
+
+      const chartLayout = (title) => ({
+        paper_bgcolor : '#1a1a2e',
+        plot_bgcolor  : '#16213e',
+        font          : { color: '#e0e0e0', family: 'Segoe UI' },
+        title         : { text: title, font: { size: 16 } },
+        xaxis         : { gridcolor: '#2a2a4a', showgrid: true },
+        yaxis         : { gridcolor: '#2a2a4a', showgrid: true, tickprefix: '$' },
+        legend        : { bgcolor: '#1a1a2e', bordercolor: '#444' },
+        margin        : { t: 50, l: 80, r: 30, b: 50 },
+        hovermode     : 'x unified'
+      });
+
+      const config = { responsive: true, displayModeBar: true };
+
+      // ── Chart 1: Historical ────────────────────────────────
+      fetch('/api/historical')
+        .then(r => r.json())
+        .then(data => {
+          console.log('✅ Historical data loaded:', data.dates.length, 'records');
+          document.getElementById('historicalChart').innerHTML = '';
+          Plotly.newPlot('historicalChart', [{
+            x         : data.dates,
+            y         : data.close,
+            type      : 'scatter',
+            mode      : 'lines',
+            name      : 'Close Price',
+            line      : { color: '#f0a500', width: 2 },
+            fill      : 'tozeroy',
+            fillcolor : 'rgba(240,165,0,0.08)'
+          }], chartLayout('BTC/USD Closing Price'), config);
+        })
+        .catch(err => {
+          console.error('❌ Historical API error:', err);
+          document.getElementById('historicalChart').innerHTML =
+            '<div class="loading">❌ Failed to load. Check console.</div>';
+        });
+
+      // ── Chart 2: Actual vs Predicted ──────────────────────
+      fetch('/api/actual_vs_predicted')
+        .then(r => r.json())
+        .then(data => {
+          console.log('✅ Prediction data loaded:', data.dates.length, 'records');
+          document.getElementById('predictionChart').innerHTML = '';
+          Plotly.newPlot('predictionChart', [
+            {
+              x    : data.dates,
+              y    : data.actual,
+              type : 'scatter',
+              mode : 'lines',
+              name : 'Actual Price',
+              line : { color: '#4fc3f7', width: 2 }
+            },
+            {
+              x    : data.dates,
+              y    : data.predicted,
+              type : 'scatter',
+              mode : 'lines',
+              name : 'Predicted Price',
+              line : { color: '#ff6b6b', width: 2, dash: 'dot' }
+            }
+          ], chartLayout('Actual vs Predicted BTC Price'), config);
+        })
+        .catch(err => {
+          console.error('❌ Prediction API error:', err);
+          document.getElementById('predictionChart').innerHTML =
+            '<div class="loading">❌ Failed to load. Check console.</div>';
+        });
+
+      // ── Chart 3: Forecast ──────────────────────────────────
+      fetch('/api/forecast')
+        .then(r => r.json())
+        .then(data => {
+          console.log('✅ Forecast data loaded:', data.dates.length, 'records');
+          document.getElementById('forecastChart').innerHTML = '';
+          Plotly.newPlot('forecastChart', [{
+            x         : data.dates,
+            y         : data.prices,
+            type      : 'scatter',
+            mode      : 'lines+markers',
+            name      : '30-Day Forecast',
+            line      : { color: '#a29bfe', width: 2 },
+            marker    : { color: '#a29bfe', size: 5 },
+            fill      : 'tozeroy',
+            fillcolor : 'rgba(162,155,254,0.08)'
+          }], chartLayout('30-Day Bitcoin Price Forecast'), config);
+        })
+        .catch(err => {
+          console.error('❌ Forecast API error:', err);
+          document.getElementById('forecastChart').innerHTML =
+            '<div class="loading">❌ Failed to load. Check console.</div>';
+        });
+
+    }; // end window.onload
+  </script>
+
+</body>
+</html>

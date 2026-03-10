@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Data files (too large for GitHub)
+data/X_train.npy
+data/X_test.npy
+data/y_train.npy
+data/y_test.npy
+data/*.png
+
+# Keep these data files (needed for Flask)
+!data/btc_cleaned.csv
+!data/y_pred.npy
+!data/y_actual.npy
+!data/scaler.pkl
+!data/metrics.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
