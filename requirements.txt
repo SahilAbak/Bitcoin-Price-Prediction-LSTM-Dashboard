@@ -2,7 +2,6 @@ flask
 numpy
 pandas
 scikit-learn
-tensorflow-cpu
+tensorflow-cpu==2.15.0
 plotly
 gunicorn
-pickle5
