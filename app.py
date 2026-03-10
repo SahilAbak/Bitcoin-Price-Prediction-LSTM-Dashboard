@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 print("🔄 Loading model and data...")
 
-model  = load_model('model/lstm_model.keras')
+model = load_model('model/lstm_model.h5')
 scaler = pickle.load(open('data/scaler.pkl', 'rb'))
 df     = pd.read_csv('data/btc_cleaned.csv')
 
